@@ -4,28 +4,83 @@ import numpy as np
 from PIL import Image
 import numpy as np
 import os
+import cv2
 
 # Converts a Tensor into a Numpy array
 # |imtype|: the desired type of the converted numpy array
+
+def tensor2im(input_image, imtype=np.uint8, no_process=False):
+    """"Converts a Tensor array into a numpy image array.
+
+    Parameters:
+        input_image (tensor) --  the input image tensor array
+        imtype (type)        --  the desired type of the converted numpy array
+    """
+    if not isinstance(input_image, np.ndarray):
+        if isinstance(input_image, torch.Tensor):  # get the data from a variable
+            image_tensor = input_image.data
+        else:
+            return input_image
+        image_numpy = image_tensor[0].cpu().float().numpy()  # convert it into a numpy array
+        if not no_process:
+
+            # image_numpy = (image_numpy + 1.0) / 2.0 * 255.0
+            image_numpy = (image_numpy + 1.0) / 2.0
+            img = image_numpy.transpose((1, 2, 0))
+            img_a = img.copy()
+            top_clip_value = np.percentile(img, 95)
+            img[img > top_clip_value] = top_clip_value
+            top_clip_value = np.percentile(img, 3)
+            img[img < top_clip_value] = top_clip_value
+            img = cv2.normalize(img, img_a, 0.0, 255.0, cv2.NORM_MINMAX)
+            img = img.astype(np.uint8)
+            clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+            img = clahe.apply(img)
+            # img = cv2.equalizeHist(img)
+
+            img = np.dstack((img, img, img))
+
+            image_numpy = img
+
+            # if image_numpy.shape[0] == 1:  # grayscale to RGB
+            #    image_numpy = np.tile(image_numpy, (3, 1, 1))
+            # print(image_numpy.shape)
+            # image_numpy = (np.transpose(image_numpy, (1, 2, 0)) + 1) / 2.0 * 255.0  # post-processing: tranpose and scaling
+    else:  # if it is a numpy array, do nothing
+        image_numpy = input_image
+    return image_numpy
+
 def tensor2im(image_tensor, imtype=np.uint8, normalize=True):
     if isinstance(image_tensor, list):
         image_numpy = []
         for i in range(len(image_tensor)):
             image_numpy.append(tensor2im(image_tensor[i], imtype, normalize))
         return image_numpy
+
     image_numpy = image_tensor.cpu().float().numpy()
-    if normalize:
-        image_numpy = (np.transpose(image_numpy, (1, 2, 0)) + 1) / 2.0 * 255.0
-    else:
-        image_numpy = np.transpose(image_numpy, (1, 2, 0)) * 255.0      
-    image_numpy = np.clip(image_numpy, 0, 255)
-    if image_numpy.shape[2] == 1 or image_numpy.shape[2] > 3:        
-        image_numpy = image_numpy[:,:,0]
-    return image_numpy.astype(imtype)
+
+    image_numpy = (image_numpy + 1.0) / 2.0
+    img = image_numpy.transpose((1, 2, 0))
+    img_a = img.copy()
+    top_clip_value = np.percentile(img, 95)
+    img[img > top_clip_value] = top_clip_value
+    top_clip_value = np.percentile(img, 3)
+    img[img < top_clip_value] = top_clip_value
+    img = cv2.normalize(img, img_a, 0.0, 255.0, cv2.NORM_MINMAX)
+    img = img.astype(np.uint8)
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    img = clahe.apply(img)
+    # img = cv2.equalizeHist(img)
+
+    img = np.dstack((img, img, img))
+
+    image_numpy = img
+
+    return image_numpy
 
 # Converts a one-hot tensor into a colorful label map
 def tensor2label(label_tensor, n_label, imtype=np.uint8):
-    if n_label == 0:
+    if n_label == 0 or n_label == 1:
         return tensor2im(label_tensor, imtype)
     label_tensor = label_tensor.cpu().float()    
     if label_tensor.size()[0] > 1:

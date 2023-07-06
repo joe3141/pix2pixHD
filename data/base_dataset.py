@@ -50,11 +50,14 @@ def get_transform(opt, params, method=Image.BICUBIC, normalize=True):
     if opt.isTrain and not opt.no_flip:
         transform_list.append(transforms.Lambda(lambda img: __flip(img, params['flip'])))
 
+    transform_list.append(transforms.Lambda(lambda img: np.array(img).astype(np.float32)))  # uint16 => float32
+    transform_list.append(transforms.Lambda(lambda img: img / max(float(np.max(img)), 1.0)))
     transform_list += [transforms.ToTensor()]
 
     if normalize:
-        transform_list += [transforms.Normalize((0.5, 0.5, 0.5),
-                                                (0.5, 0.5, 0.5))]
+        # transform_list += [transforms.Normalize((0.5, 0.5, 0.5),
+        #                                         (0.5, 0.5, 0.5))]
+        transform_list += [transforms.Normalize((0.5,), (0.5,))]
     return transforms.Compose(transform_list)
 
 def normalize():    
@@ -66,6 +69,7 @@ def __make_power_2(img, base, method=Image.BICUBIC):
     w = int(round(ow / base) * base)
     if (h == oh) and (w == ow):
         return img
+    print("RESIZED IMAGE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
     return img.resize((w, h), method)
 
 def __scale_width(img, target_width, method=Image.BICUBIC):
